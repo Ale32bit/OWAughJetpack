@@ -52,7 +52,7 @@ public class OWAughJetpack : ModBehaviour
 
     private void PatchAudioType(Dictionary<int, AudioLibrary.AudioEntry> dict, AudioType type, string name)
     {
-        AudioLibrary.AudioEntry entry = new AudioLibrary.AudioEntry(type, GetClip(name), 0.5f);
+        AudioLibrary.AudioEntry entry = new AudioLibrary.AudioEntry(type, new AudioClip[] { GetClip(name) }, 0.5f);
         try {
             dict[(int)type] = entry;
         } catch {
