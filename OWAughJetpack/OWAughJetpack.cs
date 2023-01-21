@@ -1,6 +1,8 @@
 ﻿using HarmonyLib;
 using OWML.Common;
 using OWML.ModHelper;
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace OWAughJetpack;
@@ -9,7 +11,7 @@ namespace OWAughJetpack;
 public class OWAughJetpack : ModBehaviour
 {
     public static OWAughJetpack Instance { get; private set; }
-    public static OWAudioSource Augh;
+
     private void Awake()
     {
     }
@@ -18,44 +20,43 @@ public class OWAughJetpack : ModBehaviour
     {
         Instance = this;
         Instance.ModHelper.Console.WriteLine($"AUGH JetPack enabled!", MessageType.Success);
+        
+        GetClip("Assets/augh.mp3");
 
-        Instance.ModHelper.HarmonyHelper.AddPrefix<JetpackThrusterAudio>("Update", typeof(OWAughJetpack), "Play");
-
-        LoadManager.OnCompleteSceneLoad += (scene, loadScene) =>
+        LoadManager.OnCompleteSceneLoad += (scene, loadScene) => 
         {
-            if (loadScene != OWScene.SolarSystem) return;
-
-            var playerBody = FindObjectOfType<PlayerBody>();
-            GameObject gameObject = FindObjectOfType<PlayerBody>().gameObject;
-
-            Augh = gameObject.AddComponent<OWAudioSource>();
-            Augh.clip = ModHelper.Assets.GetAudio("Assets/augh.mp3");
-            Augh.SetLocalVolume(1f);
-            Augh.playOnAwake = false;
+            StartCoroutine(PatchAudio());
         };
     }
 
-    public static void Play(JetpackThrusterAudio __instance)
+    private IEnumerator PatchAudio() 
     {
-        bool flag = ((JetpackThrusterModel)__instance._thrusterModel).IsBoosterFiring();
-        bool flag2 = __instance._playerResources.GetFuel() > 0f;
-        float num = (flag ? 0f : __instance._thrusterModel.GetThrustFraction());
-        float num2 = -__instance._thrusterModel.GetLocalAcceleration().x / __instance._thrusterModel.GetMaxTranslationalThrust() * 0.4f;
-        __instance.UpdateTranslationalSource(__instance._translationalSource, num, num2, !__instance._underwater && flag2);
-        __instance.UpdateTranslationalSource(__instance._underwaterSource, num, num2, __instance._underwater);
-        __instance.UpdateTranslationalSource(__instance._oxygenSource, num, num2, !__instance._underwater && !flag2);
-        if (!__instance._wasBoosting && flag)
-        {
-            Augh.FadeIn(0.1f, false, false, 1f);
-        }
-        else if (__instance._wasBoosting && !flag)
-        {
-            Augh.FadeOut(0.3f, OWAudioSource.FadeOutCompleteAction.STOP, 0f);
-        }
-        __instance._wasBoosting = flag;
-        if (!__instance._thrustersFiring && !__instance._translationalSource.isPlaying && !__instance._underwaterSource.isPlaying && !__instance._oxygenSource.isPlaying && !flag && !__instance._wasBoosting)
-        {
-            __instance.enabled = false;
+        yield return new WaitForSecondsRealtime(1);
+
+        Dictionary<int, AudioLibrary.AudioEntry> dict = ((Dictionary<int, AudioLibrary.AudioEntry>)AccessTools.Field(typeof(AudioManager), "_audioLibraryDict").GetValue(Locator.GetAudioManager()));
+
+        Instance.PatchAudioType(dict, AudioType.PlayerSuitJetpackBoost, "Assets/augh.mp3");        
+        
+        Instance.ModHelper.Console.WriteLine($"All sounds patched!", MessageType.Success);
+    }
+    
+    
+    public Dictionary<string, AudioClip> Sounds = new Dictionary<string, AudioClip>();
+    private AudioClip GetClip(string name) 
+    {
+        if (Instance.Sounds.ContainsKey(name)) { return Instance.Sounds[name]; }
+        AudioClip audioClip = ModHelper.Assets.GetAudio(name);
+        Instance.Sounds.Add(name, audioClip);
+        return audioClip;
+    }
+
+    private void PatchAudioType(Dictionary<int, AudioLibrary.AudioEntry> dict, AudioType type, string name)
+    {
+        AudioLibrary.AudioEntry entry = new AudioLibrary.AudioEntry(type, new AudioClip[] { GetClip(name) }, 0.5f);
+        try {
+            dict[(int)type] = entry;
+        } catch {
+            dict.Add((int)type, entry);
         }
     }
 }
